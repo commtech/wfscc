@@ -28,6 +28,7 @@ app_epilog = \
 
     """
 verbose_help = 'display incoming packets on screen'
+prepend_help = 'prepend data with port number'
 capture_help = 'the output directory to store .pcap files'
 port_nums_help = 'the port\'s to capture'
 
@@ -49,23 +50,23 @@ def global_header():
     return to_hex(pcap_global_header)
 
 
-def packet_header(data):
+def packet_header(data, timestamp):
     #pcap packet header that must preface every packet
     pcap_packet_header = ('AA 77 9F 47'
                           '90 A2 04 00'
                           'XX XX XX XX'   # Frame Size (little endian)
                           'YY YY YY YY')  # Frame Size (little endian)
 
-    hex_str = "%08x" % len(data[0])
+    hex_str = "%08x" % len(data)
     reverse_hex_str = hex_str[6:] + hex_str[4:6] + hex_str[2:4] + hex_str[:2]
     pcaph = pcap_packet_header.replace('XX XX XX XX', reverse_hex_str)
     pcaph = pcaph.replace('YY YY YY YY', reverse_hex_str)
 
-    hex_str = "%08x" % int(data[2])
+    hex_str = "%08x" % int(timestamp)
     reverse_hex_str = hex_str[6:] + hex_str[4:6] + hex_str[2:4] + hex_str[:2]
     pcaph = pcaph.replace('AA 77 9F 47', reverse_hex_str)
 
-    hex_str = "%08x" % ((data[2] % 1) * 1000000)
+    hex_str = "%08x" % ((timestamp % 1) * 1000000)
     reverse_hex_str = hex_str[6:] + hex_str[4:6] + hex_str[2:4] + hex_str[:2]
     pcaph = pcaph.replace('90 A2 04 00', reverse_hex_str)
 
@@ -73,11 +74,12 @@ def packet_header(data):
 
 
 class ThreadClass(threading.Thread):
-    def __init__(self, port_num, verbose, capture_dir):
+    def __init__(self, port_num, verbose, prepend, capture_dir):
         super(ThreadClass, self).__init__()
 
         self.port_num = port_num
         self.verbose = verbose
+        self.prepend = prepend
         self.capture_dir = capture_dir
 
         self.shutdown = True
@@ -126,11 +128,16 @@ class ThreadClass(threading.Thread):
         if self.verbose:
             print('fscc{}'.format(self.port_num), data)
 
+        if self.prepend:
+            raw_data = bytes((self.port_num,)) + data[0]
+        else:
+            raw_data = data[0]
+
         # Send data to pipe. if pipe is disconnected, reconnect
         if self.connected:
             try:
-                win32file.WriteFile(pipe, packet_header(data))
-                win32file.WriteFile(pipe, data[0])
+                win32file.WriteFile(pipe, packet_header(raw_data, data[2]))
+                win32file.WriteFile(pipe, raw_data)
             except:
                 win32pipe.DisconnectNamedPipe(pipe)
                 ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
@@ -138,8 +145,8 @@ class ThreadClass(threading.Thread):
 
         # write data to file if in capture mode
         if file:
-            file.write(packet_header(data))
-            file.write(data[0])
+            file.write(packet_header(raw_data, data[2]))
+            file.write(raw_data)
 
     def run(self):
         self.shutdown = False
@@ -175,6 +182,8 @@ if __name__ == "__main__":
         description=app_description, epilog=app_epilog)
     parser.add_argument('-v', '--verbose', action='store_true',
                         help=verbose_help)
+    parser.add_argument('-p', '--prepend', action='store_true',
+                        help=prepend_help)
     parser.add_argument('-c', '--capture_dir', help=capture_help)
     parser.add_argument('port_nums', metavar='PORT_NUM', type=int, nargs='+',
                         help=port_nums_help)
@@ -190,7 +199,7 @@ if __name__ == "__main__":
 
     for port_num in args.port_nums:
         try:
-            threads.append(ThreadClass(port_num, args.verbose, dir))
+            threads.append(ThreadClass(port_num, args.verbose, args.prepend, dir))
         except fscc.PortNotFoundError:
             print('Port fscc{} not found.'.format(port_num))
 
