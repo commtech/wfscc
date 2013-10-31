@@ -167,7 +167,9 @@ class ThreadClass(threading.Thread):
                     win32file.WriteFile(pipe, global_header())
                     win32file.CloseHandle(ol.hEvent)
 
-            if data[0] is None:
+            # Length check added due to customer seeing data[0] being
+            # blank but not None
+            if data[0] is None or len(data[0]) == 0:
                 continue
 
             self._write_packet(data, pipe, file, ol)
