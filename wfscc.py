@@ -3,9 +3,7 @@
 # http://www.python.org
 # http://sourceforge.net/projects/pywin32/
 
-import win32pipe
-import win32file
-import win32event
+
 import binascii
 import argparse
 import threading
@@ -14,21 +12,21 @@ import sys
 import fscc
 import os
 
-app_description = 'Open a pipe for Wireshark analysis'
-app_epilog = \
-    """
-    To view the incoming packets in Wireshark you will need to open a
-    'Wireshark Pipe' for each port you want captured.
+if os.name == 'nt':
+    import win32pipe
+    import win32file
+    import win32event
 
-    '\\\\.\\pipe\\wireshark\\fscc0` capture FSCC port 0
+if os.name == 'nt':
+    default_pipe_dir = r'\\.\pipe\wireshark'
+else:
+    default_pipe_dir = r'/tmp/'
 
-    If you would like to record data for post-analysis you can use the
-    --capture
-    option. Files for each port will be stored with a .pcap extension.
+app_description = 'Open a pipe for Wireshark analysis.'
 
-    """
 verbose_help = 'display incoming packets on screen'
-capture_help = 'the output directory to store .pcap files'
+capture_help = 'the directory to store the pcap files'
+pipe_help = 'the directory to store the pipes'
 port_nums_help = 'the port\'s to capture'
 
 
@@ -73,7 +71,7 @@ def packet_header(data):
 
 
 class ThreadClass(threading.Thread):
-    def __init__(self, port_num, verbose, capture_dir):
+    def __init__(self, port_num, verbose, capture_dir, pipe_dir):
         super(ThreadClass, self).__init__()
 
         self.port_num = port_num
@@ -85,41 +83,64 @@ class ThreadClass(threading.Thread):
         self.connection_started = False
 
         self.port = fscc.Port(self.port_num, 'r')
-        self.pipe_name = r'\\.\pipe\wireshark\fscc{}'.format(self.port_num)
+
+        pipe_name = 'fscc{}'.format(self.port_num)
+        self.pipe_path = os.path.join(pipe_dir, pipe_name)
+
         self.file_name = r'fscc{}.pcap'.format(self.port_num)
 
     def stop(self):
         self.shutdown = True
 
     def _create_pipe(self):
-        pipe = win32pipe.CreateNamedPipe(
-            self.pipe_name,
-            win32pipe.PIPE_ACCESS_OUTBOUND | win32file.FILE_FLAG_OVERLAPPED,
-            win32pipe.PIPE_TYPE_MESSAGE | win32pipe.PIPE_WAIT,
-            1, 65536, 65536,
-            300,
-            None)
+        if os.name == 'nt':
+            pipe = win32pipe.CreateNamedPipe(
+                self.pipe_path,
+                win32pipe.PIPE_ACCESS_OUTBOUND | win32file.FILE_FLAG_OVERLAPPED,
+                win32pipe.PIPE_TYPE_MESSAGE | win32pipe.PIPE_WAIT,
+                1, 65536, 65536,
+                300,
+                None)
 
-        ol = win32file.OVERLAPPED()
-        ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
+            ol = win32file.OVERLAPPED()
+            ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
+        else:
+            try:
+                os.mkfifo(self.pipe_path)
+            except FileExistsError:
+                pass
+
+            pipe, ol = None, None
 
         return pipe, ol
 
     def _connect_pipe(self, pipe, ol):
         if self.connected:
-            return True
+            return True, pipe
 
         if self.connection_started is False:
-            win32pipe.ConnectNamedPipe(pipe, ol)
+            if os.name == 'nt':
+                win32pipe.ConnectNamedPipe(pipe, ol)
+
             self.connection_started = True
 
-        r = win32event.WaitForSingleObject(ol.hEvent, 0)
-        if r == win32event.WAIT_OBJECT_0:
-            self.connected = True
-            self.connection_started = False
-            return True
+        if os.name == 'nt':
+            r = win32event.WaitForSingleObject(ol.hEvent, 0)
+            if r == win32event.WAIT_OBJECT_0:
+                self.connected = True
+                self.connection_started = False
+                return True, pipe
+            else:
+                return False, None
         else:
-            return False
+            try:
+                pipe = os.open(self.pipe_path, os.O_WRONLY | os.O_NONBLOCK)
+            except OSError:
+                return False, None
+            else:
+                self.connected = True
+                self.connection_started = False
+                return True, pipe
 
     def _write_packet(self, data, pipe, file, ol):
         # send data to terimanl if in verbose mode
@@ -128,13 +149,17 @@ class ThreadClass(threading.Thread):
 
         # Send data to pipe. if pipe is disconnected, reconnect
         if self.connected:
-            try:
-                win32file.WriteFile(pipe, packet_header(data))
-                win32file.WriteFile(pipe, data[0])
-            except:
-                win32pipe.DisconnectNamedPipe(pipe)
-                ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
-                self.connected = False
+            if os.name == 'nt':
+                try:
+                    win32file.WriteFile(pipe, packet_header(data))
+                    win32file.WriteFile(pipe, data[0])
+                except:
+                    win32pipe.DisconnectNamedPipe(pipe)
+                    ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
+                    self.connected = False
+            else:
+                os.write(pipe, packet_header(data))
+                os.write(pipe, data[0])
 
         # write data to file if in capture mode
         if file:
@@ -156,9 +181,13 @@ class ThreadClass(threading.Thread):
             data = self.port.read(10)
 
             if not self.connected:
-                if self._connect_pipe(pipe, ol):
-                    win32file.WriteFile(pipe, global_header())
-                    win32file.CloseHandle(ol.hEvent)
+                connected, pipe = self._connect_pipe(pipe, ol)
+                if connected:
+                    if os.name == 'nt':
+                        win32file.WriteFile(pipe, global_header())
+                        win32file.CloseHandle(ol.hEvent)
+                    else:
+                        os.write(pipe, global_header())
 
             if data[0] is None:
                 continue
@@ -171,11 +200,13 @@ class ThreadClass(threading.Thread):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=app_description, epilog=app_epilog)
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=app_description)
     parser.add_argument('-v', '--verbose', action='store_true',
                         help=verbose_help)
     parser.add_argument('-c', '--capture_dir', help=capture_help)
+    parser.add_argument('-p', '--pipe_dir', default=default_pipe_dir,
+                        help=pipe_help)
     parser.add_argument('port_nums', metavar='PORT_NUM', type=int, nargs='+',
                         help=port_nums_help)
 
@@ -184,13 +215,19 @@ if __name__ == "__main__":
     threads = []
 
     if args.capture_dir:
-        dir = os.path.abspath(args.capture_dir)
+        capture_dir = os.path.abspath(args.capture_dir)
     else:
-        dir = None
+        capture_dir = None
+
+    if args.pipe_dir:
+        pipe_dir = os.path.abspath(args.pipe_dir)
+    else:
+        pipe_dir = None
 
     for port_num in args.port_nums:
         try:
-            threads.append(ThreadClass(port_num, args.verbose, dir))
+            threads.append(ThreadClass(port_num, args.verbose, capture_dir,
+                                       pipe_dir))
         except fscc.PortNotFoundError:
             print('Port fscc{} not found.'.format(port_num))
 
