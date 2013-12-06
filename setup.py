@@ -10,12 +10,12 @@ else:
 
 buildOptions = dict(packages = ['fscc'], excludes = [], includes = ['re'],
                     include_files = [cfscc_path])
-    
+
 executables = [
     Executable('wfscc.py')
 ]
 
 setup(name='wfscc',
-      version = '1.0.0',
+      version = '1.1.0',
       options = dict(build_exe = buildOptions),
       executables = executables)
