@@ -36,7 +36,7 @@ We are now going to set up Wireshark to grab data on those 'pipes'.
 Wireshark is now set up to retrieve data from the wfscc utility.
 
 
-## Dependencies
+## Build Dependencies
 - [Python 3](http://www.python.org/download/) (32-bit)
 - [pyfscc](http://github.com/commtech/pyfscc/)
 
