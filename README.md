@@ -41,6 +41,10 @@ Wireshark is now set up to retrieve data from the wfscc utility.
 - [pyfscc](http://github.com/commtech/pyfscc/)
 
 
+## Run-time Dependencies
+- OS: Windows XP+ & Linux
+
+
 ## Compatibility
 We follow [Semantic Versioning](http://semver.org/) when creating releases.
 
