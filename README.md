@@ -38,6 +38,7 @@ Wireshark is now set up to retrieve data from the wfscc utility.
 
 ## Build Dependencies
 - [Python 3](http://www.python.org/download/) (32-bit)
+- [pywin32](http://sourceforge.net/projects/pywin32/)
 - [pyfscc](http://github.com/commtech/pyfscc/)
 
 
