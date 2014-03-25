@@ -17,5 +17,7 @@ executables = [
 
 setup(name='wfscc',
       version = '1.1.0',
+      description='Fastcom FSCC Wireshark Utility',
+      author='Commtech, Inc.',
       options = dict(build_exe = buildOptions),
       executables = executables)
