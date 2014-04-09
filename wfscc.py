@@ -179,14 +179,14 @@ class ThreadClass(threading.Thread):
         if self.connected:
             if os.name == 'nt':
                 try:
-                    win32file.WriteFile(pipe, packet_header(data))
+                    win32file.WriteFile(pipe, packet_header(raw_data, data[2]))
                     win32file.WriteFile(pipe, data[0])
                 except:
                     win32pipe.DisconnectNamedPipe(pipe)
                     ol.hEvent = win32event.CreateEvent(None, 0, 0, None)
                     self.connected = False
             else:
-                os.write(pipe, packet_header(data))
+                os.write(pipe, packet_header(raw_data, data[2]))
                 os.write(pipe, data[0])
 
         # write data to file if in capture mode
