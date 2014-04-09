@@ -154,7 +154,7 @@ class ThreadClass(threading.Thread):
                 self.connection_started = False
                 return True, pipe
             else:
-                return False, None
+                return False, pipe
         else:
             try:
                 pipe = os.open(self.pipe_path, os.O_WRONLY | os.O_NONBLOCK)
