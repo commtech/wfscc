@@ -22,7 +22,7 @@ You have now set up the utility that takes data it receives on port's 0 and 1
 and 'pipe' that data over to Wireshark.
 
 We are now going to set up Wireshark to grab data on those 'pipes'.
-
+```
 1. Open Wireshark
 2. Select 'Capture Options'
 3. Select 'Manage Interfaces'
@@ -32,7 +32,7 @@ We are now going to set up Wireshark to grab data on those 'pipes'.
 5. Enter \\.\pipe\wireshark\fscc1
 4. Select 'Save'
 4. Select 'Start'
-
+```
 Wireshark is now set up to retrieve data from the wfscc utility.
 
 
