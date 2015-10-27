@@ -8,20 +8,22 @@ This README file is best viewed [online](http://github.com/commtech/wfscc/).
 
 
 ## Quick Start Guide
-For this example I will be using Windows. You can also use Linux.
 
 First, change to the wfscc directory and start the utility. 
 
 ```
 # cd wfscc\
-# wfscc.exe 0 1
+# python wfscc.py 0 1
 Press Ctrl+C to exit
 ```
 
 You have now set up the utility that takes data it receives on port's 0 and 1
-and 'pipe' that data over to Wireshark.
+and 'pipe' that data over to Wireshark.  Do not exit the terminal or press
+Ctrl+C until you're done collecting data.  
 
 We are now going to set up Wireshark to grab data on those 'pipes'.
+
+#####Windows
 ```
 1. Open Wireshark
 2. Select 'Capture Options'
@@ -33,7 +35,19 @@ We are now going to set up Wireshark to grab data on those 'pipes'.
 4. Select 'Save'
 4. Select 'Start'
 ```
-Wireshark is now set up to retrieve data from the wfscc utility.
+#####Linux
+```
+1. Open Wireshark
+2. Select 'Capture Options'
+3. Select 'Manage Interfaces'
+4. Select 'New'
+5. Enter /tmp/fscc0
+4. Select 'New'
+5. Enter /tmp/fscc1
+4. Select 'Save'
+4. Select 'Start'
+```
+Wireshark is now set up to retrieve data on fscc0 & fscc1 from the wfscc utility.
 
 
 ## Build Dependencies
